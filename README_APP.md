@@ -11,9 +11,20 @@ The folder must contain `dataset.csv` and the `images/Fractured` and `images/Non
     uvicorn app.server:app --port 8000      # open http://localhost:8000
 No weights yet? `python tools/make_demo_results.py` fills the dashboard with SYNTHETIC placeholder data (clearly bannered). `/api/predict` returns 503 until `best_model.pt` exists.
 
-## 3. Deploy
+## 3. Deploy the API with Docker
     docker build -t safetriage . && docker run -p 8000:8000 safetriage
 (Run training first so `outputs/` holds the real files; the image copies it.) Works on Render, Railway, Fly.io, or any VM; CPU is fine for inference.
+
+## 4. Deploy the UI on Vercel and API on Render
+
+The prediction API uses PyTorch, which makes it too large for a standard Vercel Python Function. This repository includes a Render Blueprint for the Docker API and a separate static frontend suitable for Vercel.
+
+1. In Vercel, import this repository and set the project Root Directory to `frontend`. Deploy it as a static site with no build command. The page will appear, but API-backed features will wait until the next steps are complete.
+2. In Render, create a new Blueprint from this repository and set `CORS_ORIGINS` to your Vercel production origin, for example `https://your-project.vercel.app` (no trailing slash). Add any custom domain as another comma-separated origin. Wait for the API service to become healthy.
+3. Edit `frontend/api-config.js` to set `window.SAFETRIAGE_API_BASE` to the Render API URL, for example `https://safetriage-msk-api.onrender.com`, then commit and push the change so Vercel redeploys.
+4. Check `https://your-render-service.onrender.com/api/health`. The response should show `model_ready: true`. Then open the Vercel site and try the dashboard.
+
+Render's free service sleeps when idle, so the first API request can take about a minute while it wakes up. It has 512 MB RAM, less than this model process used locally at startup; the free API may be terminated before or during a prediction. If that happens, upgrade to a service with at least 2 GB RAM. The frontend and API must use matching production origins in the CORS setting.
 
 ## API
 `GET /api/health` · `GET /api/results` · `POST /api/predict` (form: `body_part`, `files`×1–3)

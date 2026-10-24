@@ -4,6 +4,7 @@ RUN pip install --no-cache-dir torch torchvision --index-url https://download.py
  && pip install --no-cache-dir numpy pandas pillow matplotlib fastapi "uvicorn[standard]" python-multipart
 COPY src ./src
 COPY app ./app
+COPY frontend ./frontend
 COPY tools ./tools
 COPY outputs ./outputs
 EXPOSE 8000

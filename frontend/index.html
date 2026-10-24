@@ -42,9 +42,11 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:7px 8px;b
   <div class="card"><h3>Per body part detail</h3><div style="overflow-x:auto"><table id="tbl"></table></div></div>
  </div></section>
 </main>
+<script src="/api-config.js"></script>
 <script>
 const $=id=>document.getElementById(id),P=x=>(x*100).toFixed(1)+'%';
-fetch('/api/parts',{cache:'no-store'}).then(async r=>{const text=await r.text(); let BP=[]; try{ BP = text ? JSON.parse(text) : []; } catch { BP = []; } $('bp').innerHTML = BP.map(b=>`<option>${b}</option>`).join('') || '<option>HAND</option>'});
+const apiPath=path=>`${(window.SAFETRIAGE_API_BASE||'').replace(/\/+$/,'')}${path}`;
+fetch(apiPath('/api/parts'),{cache:'no-store'}).then(async r=>{const text=await r.text(); let BP=[]; try{ BP = text ? JSON.parse(text) : []; } catch { BP = []; } $('bp').innerHTML = BP.map(b=>`<option>${b}</option>`).join('') || '<option>HAND</option>'});
 function tab(n){$('p1').classList.toggle('hide',n!=1);$('p2').classList.toggle('hide',n!=2);$('t1').className=n==1?'on':'';$('t2').className=n==2?'on':'';if(n==2&&!window.loaded)loadDash()}
 $('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
 const LABEL={normal:'✅ Confident: NORMAL',abnormal:'⚠️ Confident: ABNORMAL',defer:'🚩 Not sure — send to a radiologist'};
@@ -53,7 +55,7 @@ $('go').onclick=async()=>{
  const fd=new FormData();fd.append('body_part',$('bp').value);[...f].forEach(x=>fd.append('files',x));
  $('msg').textContent='Analysing…';$('out').innerHTML='';$('go').disabled=true;
  try{
-  const r=await fetch('/api/predict',{method:'POST',body:fd});
+  const r=await fetch(apiPath('/api/predict'),{method:'POST',body:fd});
   const text = await r.text();
   let d = null;
   try { d = text ? JSON.parse(text) : null; } catch (err) { throw new Error(text || 'Server returned an invalid response'); }
@@ -71,7 +73,7 @@ $('go').onclick=async()=>{
 let charts=[];
 function mk(id,cfg){const c=new Chart($(id),cfg);charts.push(c)}
 async function loadDash(){
- const r=await fetch('/api/results');if(!r.ok){$('banner').innerHTML='<div class="banner">No results yet. Run <code>python main.py</code> or <code>python tools/make_demo_results.py</code>.</div>';return}
+ const r=await fetch(apiPath('/api/results'));if(!r.ok){$('banner').innerHTML='<div class="banner">No results yet. Run <code>python main.py</code> or <code>python tools/make_demo_results.py</code>.</div>';return}
  const d=await r.json();window.loaded=true;const o=d.overall,bp=d.body_parts;
  $('banner').innerHTML=d.synthetic?'<div class="banner"><b>SYNTHETIC DEMO DATA</b> — placeholder numbers for UI testing only. Run main.py on MURA for real results.</div>':'';
  const k=[['Accuracy',P(o.accuracy)],['AUC',o.auc.toFixed(3)],['Sensitivity',P(o.sensitivity)],['Specificity',P(o.specificity)],['ECE',o.ece.toFixed(3)],

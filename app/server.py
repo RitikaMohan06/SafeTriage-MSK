@@ -2,6 +2,7 @@
 import io, json, os
 from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -11,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 OUTPUTS_DIR = BASE_DIR / "outputs"
 CALIB = os.environ.get("CALIB", str(OUTPUTS_DIR / "calibration.json"))
 RESULTS = os.environ.get("RESULTS", str(OUTPUTS_DIR / "results.json"))
-HERE = Path(__file__).resolve().parent
+FRONTEND_DIR = BASE_DIR / "frontend"
 
 PART_ALIASES = {
     "ELBOW": "ELBOW",
@@ -62,6 +63,18 @@ def _parts():
 
 
 app = FastAPI(title="SafeTriage-MSK")
+cors_origins = [
+    origin.strip().rstrip("/")
+    for origin in os.environ.get("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+if cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_methods=["GET", "POST"],
+        allow_headers=["*"],
+    )
 engine = Engine()
 
 
@@ -101,7 +114,15 @@ async def predict(body_part: str = Form(...), files: list[UploadFile] = File(...
 
 @app.get("/")
 def index():
-    return FileResponse(str(HERE / "static" / "index.html"))
+    return FileResponse(str(FRONTEND_DIR / "index.html"))
 
 
-app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
+@app.get("/api-config.js")
+def api_config():
+    return FileResponse(
+        str(FRONTEND_DIR / "api-config.js"),
+        media_type="application/javascript",
+    )
+
+
+app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")

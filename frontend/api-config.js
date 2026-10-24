@@ -1,0 +1,1 @@
+window.SAFETRIAGE_API_BASE = '';
