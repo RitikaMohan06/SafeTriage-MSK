@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SafeTriage-MSK</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mut:#6b7380;--bd:#e2e5ea;--ok:#1a8f4c;--bad:#c93a3a;--warn:#c98a00;--ac:#2456d6}
+@media(prefers-color-scheme:dark){:root{--bg:#12151a;--card:#1b2027;--tx:#e8ebef;--mut:#98a1ae;--bd:#2a313b;--ok:#3ec27a;--bad:#ef6a6a;--warn:#e8b23a;--ac:#6b93ff}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+header{display:flex;gap:16px;align-items:center;padding:14px 24px;background:var(--card);border-bottom:1px solid var(--bd);flex-wrap:wrap}
+h1{font-size:18px;margin:0}nav{margin-left:auto;display:flex;gap:6px}
+nav button,.btn{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit}
+nav button.on,.btn.primary{background:var(--ac);color:#fff;border-color:var(--ac)}
+main{max-width:1100px;margin:0 auto;padding:20px}.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:18px;margin-bottom:16px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px}.kpi b{display:block;font-size:24px}.kpi span{color:var(--mut);font-size:13px}
+.banner{background:#fff3cd;color:#664d03;border:1px solid #ffe69c;padding:10px 14px;border-radius:8px;margin-bottom:16px}
+select,input[type=file]{padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit}
+.result{font-size:22px;font-weight:700;padding:14px;border-radius:10px;margin:12px 0}
+.normal{background:rgba(26,143,76,.15);color:var(--ok)}.abnormal{background:rgba(201,58,58,.15);color:var(--bad)}.defer{background:rgba(201,138,0,.18);color:var(--warn)}
+.imgs{display:flex;gap:10px;flex-wrap:wrap}.imgs img{width:200px;border-radius:8px;border:1px solid var(--bd)}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:7px 8px;border-bottom:1px solid var(--bd);text-align:right}th:first-child,td:first-child{text-align:left}
+.mut{color:var(--mut);font-size:13px}.hide{display:none}canvas{max-height:300px}
+</style></head><body>
+<header><h1>🩻 SafeTriage-MSK</h1><span class="mut">Conformal triage for MURA bone X-rays</span>
+<nav><button id="t1" class="on">Triage</button><button id="t2">Dashboard</button></nav></header>
+<main>
+<section id="p1">
+ <div class="card"><h3 style="margin-top:0">Triage a study</h3>
+  <p class="mut">Upload 1–3 views of the <b>same</b> study. Research prototype — not a medical device; every output needs clinician review.</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+   <select id="bp"></select><input id="files" type="file" accept="image/*" multiple>
+   <button class="btn primary" id="go">Analyse</button></div>
+  <div id="msg" class="mut" style="margin-top:10px"></div><div id="out"></div></div>
+</section>
+<section id="p2" class="hide"><div id="banner"></div><div class="kpis" id="kpis"></div>
+ <div class="grid">
+  <div class="card"><h3>Miss rate by body part</h3><p class="mut">Missed abnormal (auto-called normal) vs target. Single global cutoff vs per-body-part cutoff.</p><canvas id="c1"></canvas></div>
+  <div class="card"><h3>Deferral rate by body part</h3><p class="mut">Share of studies sent to a radiologist.</p><canvas id="c2"></canvas></div>
+  <div class="card"><h3>ROC curve</h3><canvas id="c3"></canvas></div>
+  <div class="card"><h3>Reliability diagram</h3><canvas id="c4"></canvas></div>
+  <div class="card"><h3>Cost trade-off (false negative = k × false positive)</h3><canvas id="c5"></canvas></div>
+  <div class="card"><h3>Per body part detail</h3><div style="overflow-x:auto"><table id="tbl"></table></div></div>
+ </div></section>
+</main>
+<script>
+const $=id=>document.getElementById(id),P=x=>(x*100).toFixed(1)+'%';
+fetch('/api/parts',{cache:'no-store'}).then(async r=>{const text=await r.text(); let BP=[]; try{ BP = text ? JSON.parse(text) : []; } catch { BP = []; } $('bp').innerHTML = BP.map(b=>`<option>${b}</option>`).join('') || '<option>HAND</option>'});
+function tab(n){$('p1').classList.toggle('hide',n!=1);$('p2').classList.toggle('hide',n!=2);$('t1').className=n==1?'on':'';$('t2').className=n==2?'on':'';if(n==2&&!window.loaded)loadDash()}
+$('t1').onclick=()=>tab(1);$('t2').onclick=()=>tab(2);
+const LABEL={normal:'✅ Confident: NORMAL',abnormal:'⚠️ Confident: ABNORMAL',defer:'🚩 Not sure — send to a radiologist'};
+$('go').onclick=async()=>{
+ const f=$('files').files;if(!f.length||f.length>3){$('msg').textContent='Choose 1–3 images.';return}
+ const fd=new FormData();fd.append('body_part',$('bp').value);[...f].forEach(x=>fd.append('files',x));
+ $('msg').textContent='Analysing…';$('out').innerHTML='';$('go').disabled=true;
+ try{
+  const r=await fetch('/api/predict',{method:'POST',body:fd});
+  const text = await r.text();
+  let d = null;
+  try { d = text ? JSON.parse(text) : null; } catch (err) { throw new Error(text || 'Server returned an invalid response'); }
+  if(!r.ok) throw new Error((d && d.detail) || 'Request failed');
+  $('msg').textContent='';
+  $('out').innerHTML=`<div class="result ${d.decision}">${LABEL[d.decision]}</div>
+   <p>P(abnormal) = <b>${P(d.probability)}</b> · defer band for ${d.body_part}: ${P(d.tau_lo)} – ${P(d.tau_hi)} · ${d.n_views} view(s)</p>
+   <div class="imgs">${d.gradcam.map((g,i)=>`<figure style="margin:0"><img src="${g}"><figcaption class="mut">Grad-CAM view ${i+1} · P=${P(d.per_view_probability[i])}</figcaption></figure>`).join('')}</div>
+   <p class="mut">Heatmaps show where the model looked. Diffuse attention on a deferred case is expected.</p>`
+ } catch(e){
+  $('msg').textContent='Error: '+e.message;
+ }
+ $('go').disabled=false
+};
+let charts=[];
+function mk(id,cfg){const c=new Chart($(id),cfg);charts.push(c)}
+async function loadDash(){
+ const r=await fetch('/api/results');if(!r.ok){$('banner').innerHTML='<div class="banner">No results yet. Run <code>python main.py</code> or <code>python tools/make_demo_results.py</code>.</div>';return}
+ const d=await r.json();window.loaded=true;const o=d.overall,bp=d.body_parts;
+ $('banner').innerHTML=d.synthetic?'<div class="banner"><b>SYNTHETIC DEMO DATA</b> — placeholder numbers for UI testing only. Run main.py on MURA for real results.</div>':'';
+ const k=[['Accuracy',P(o.accuracy)],['AUC',o.auc.toFixed(3)],['Sensitivity',P(o.sensitivity)],['Specificity',P(o.specificity)],['ECE',o.ece.toFixed(3)],
+  ['Miss rate (target '+P(d.target_fnr)+')',P(o.per_part_tau.fnr)],['Deferral rate',P(o.per_part_tau.deferral_rate)],['Auto-decision accuracy',o.per_part_tau.auto_accuracy==null?'–':P(o.per_part_tau.auto_accuracy)]];
+ $('kpis').innerHTML=k.map(([a,b])=>`<div class="kpi"><b>${b}</b><span>${a}</span></div>`).join('');
+ const L=bp.map(x=>x.body_part),col={g:'#c98a00',p:'#2456d6'};
+ mk('c1',{type:'bar',data:{labels:L,datasets:[{label:'Global cutoff',data:bp.map(x=>x.global_tau.fnr*100),backgroundColor:col.g},{label:'Per-part cutoff',data:bp.map(x=>x.per_part_tau.fnr*100),backgroundColor:col.p},
+  {type:'line',label:'Target',data:L.map(()=>d.target_fnr*100),borderColor:'#c93a3a',pointRadius:0,borderDash:[6,4]}]},options:{scales:{y:{title:{display:true,text:'% abnormal missed'}}}}});
+ mk('c2',{type:'bar',data:{labels:L,datasets:[{label:'Global cutoff',data:bp.map(x=>x.global_tau.deferral_rate*100),backgroundColor:col.g},{label:'Per-part cutoff',data:bp.map(x=>x.per_part_tau.deferral_rate*100),backgroundColor:col.p}]},options:{scales:{y:{title:{display:true,text:'% deferred'}}}}});
+ mk('c3',{type:'scatter',data:{datasets:[{label:'ROC (AUC '+o.auc.toFixed(3)+')',data:d.roc.map(([x,y])=>({x,y})),showLine:true,borderColor:col.p,pointRadius:0},{label:'Chance',data:[{x:0,y:0},{x:1,y:1}],showLine:true,borderColor:'#999',borderDash:[5,5],pointRadius:0}]},options:{scales:{x:{title:{display:true,text:'False positive rate'}},y:{title:{display:true,text:'True positive rate'}}}}});
+ mk('c4',{type:'scatter',data:{datasets:[{label:'Model',data:d.reliability.map(([x,y])=>({x,y})),showLine:true,borderColor:col.p},{label:'Perfect',data:[{x:0,y:0},{x:1,y:1}],showLine:true,borderColor:'#999',borderDash:[5,5],pointRadius:0}]},options:{scales:{x:{min:0,max:1,title:{display:true,text:'Predicted P(abnormal)'}},y:{min:0,max:1,title:{display:true,text:'Observed frequency'}}}}});
+ mk('c5',{type:'line',data:{labels:d.cost_sweep.map(s=>'k='+s.k),datasets:[{label:'Expected cost / study',data:d.cost_sweep.map(s=>s.expected_cost),borderColor:'#c93a3a',yAxisID:'y'},{label:'Deferral rate %',data:d.cost_sweep.map(s=>s.deferral_rate*100),borderColor:col.p,yAxisID:'y1'}]},options:{scales:{y:{position:'left'},y1:{position:'right',grid:{drawOnChartArea:false}}}}});
+ $('tbl').innerHTML='<tr><th>Part</th><th>n</th><th>τ low</th><th>Miss (global)</th><th>Miss (per-part)</th><th>Defer (per-part)</th></tr>'+bp.map(x=>`<tr><td>${x.body_part}</td><td>${x.global_tau.n}</td><td>${x.tau_lo.toFixed(2)}</td><td>${P(x.global_tau.fnr)}</td><td>${P(x.per_part_tau.fnr)}</td><td>${P(x.per_part_tau.deferral_rate)}</td></tr>`).join('')}
+</script></body></html>

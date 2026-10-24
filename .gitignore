@@ -1,0 +1,18 @@
+# Dataset files are large and subject to their own distribution terms.
+data/FracAtlas.zip
+data/FracAtlas/
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Keep the trained app artifacts in Git, but ignore transient checkpoints.
+outputs/*.tmp
+outputs/checkpoint*.pt

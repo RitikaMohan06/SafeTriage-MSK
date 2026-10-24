@@ -1,0 +1,13 @@
+{
+ "temperature": 1.3390995264053345,
+ "tau_lo": 0.17,
+ "tau_hi": 0.6900000000000001,
+ "bodypart_tau_lo": {
+  "HAND": 0.37,
+  "HIP": null,
+  "LEG": 0.12,
+  "SHOULDER": null
+ },
+ "target_fnr": 0.05,
+ "target_fpr": 0.1
+}
