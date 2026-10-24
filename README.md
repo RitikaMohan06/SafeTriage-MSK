@@ -15,7 +15,9 @@ uvicorn app.server:app --host 0.0.0.0 --port 8000
 
 Open http://localhost:8000. The repository includes trained weights and calibration/results under `outputs/`.
 ## Screenshots
-<img width="1200" height="927" alt="Screenshot 2026-10-24 143022" src="https://github.com/user-attachments/assets/e22944d4-988d-4bfe-a758-c4b1002a99ee" />
+<img width="1063" height="558" alt="Screenshot 2026-10-24 183727" src="https://github.com/user-attachments/assets/33ab9481-5be5-4fa8-bbfc-3c098c6701b3" />
+<img width="625" height="484" alt="Screenshot 2026-10-24 183602" src="https://github.com/user-attachments/assets/f7daa99b-ef58-4647-9342-7e5ccbc94a59" />
+<img width="621" height="487" alt="Screenshot 2026-10-24 183646" src="https://github.com/user-attachments/assets/08078f4b-f010-418b-b235-470da7ef1d92" />
 
 ## Train on FracAtlas
 
